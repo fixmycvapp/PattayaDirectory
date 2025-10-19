@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pattaya Directory – Events</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Pattaya Directory</h1>
+    <p class="tagline">Your complete guide to events happening in Pattaya</p>
+  </header>
+
+  <section class="controls">
+    <div class="row">
+      <label>
+        Date
+        <input id="filter-date" type="date" />
+      </label>
+      <label>
+        Time
+        <input id="filter-time" type="time" />
+      </label>
+      <label>
+        Type
+        <select id="filter-type">
+          <option value="">Any</option>
+          <option>Music</option>
+          <option>Nightlife</option>
+          <option>Wellness</option>
+          <option>Food</option>
+          <option>Culture</option>
+          <option>Sports</option>
+          <option>Community</option>
+          <option>Market</option>
+          <option>Family</option>
+          <option>Dance</option>
+          <option>Art</option>
+          <option>Festival</option>
+        </select>
+      </label>
+      <label>
+        Place
+        <select id="filter-place">
+          <option value="">Any</option>
+          <option>Walking Street</option>
+          <option>Beach Road</option>
+          <option>Central Pattaya</option>
+          <option>Jomtien Beach</option>
+          <option>Naklua</option>
+        </select>
+      </label>
+      <label>
+        Popularity ≥
+        <input id="filter-popularity" type="number" min="0" max="100" step="1" placeholder="0" />
+      </label>
+    </div>
+    <div class="row">
+      <label>
+        Sort by
+        <select id="sort-by">
+          <option value="dateTime">Date & Time</option>
+          <option value="popularity">Popularity</option>
+          <option value="name">Name</option>
+          <option value="place">Place</option>
+          <option value="type">Type</option>
+        </select>
+      </label>
+      <label>
+        Order
+        <select id="sort-order">
+          <option value="desc">Desc</option>
+          <option value="asc">Asc</option>
+        </select>
+      </label>
+      <button id="apply-filters" class="btn">Apply Filters</button>
+      <button id="clear-filters" class="btn secondary">Clear</button>
+      <button id="refresh" class="btn tertiary">Refresh</button>
+    </div>
+  </section>
+
+  <main>
+    <div id="eventsGrid" class="grid" aria-live="polite"></div>
+    <div id="loading" class="loading" hidden>Loading…</div>
+    <div id="end" class="end" hidden>No more events</div>
+    <div id="sentinel" class="sentinel" aria-hidden="true"></div>
+  </main>
+
+  <footer class="site-footer">
+    <p>© <span id="year"></span> Pattaya Directory</p>
+  </footer>
+
+  <script src="/js/app.js" type="module"></script>
+</body>
+</html>
