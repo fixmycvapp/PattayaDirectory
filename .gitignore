@@ -1,3 +1,10 @@
+<<<<<<< HEAD
+=======
+# Created by https://www.toptal.com/developers/gitignore/api/node
+# Edit at https://www.toptal.com/developers/gitignore?templates=node
+
+### Node ###
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 # Logs
 logs
 *.log
@@ -5,6 +12,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
+<<<<<<< HEAD
+=======
+.pnpm-debug.log*
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -56,6 +67,15 @@ web_modules/
 # Optional stylelint cache
 .stylelintcache
 
+<<<<<<< HEAD
+=======
+# Microbundle cache
+.rpt2_cache/
+.rts2_cache_cjs/
+.rts2_cache_es/
+.rts2_cache_umd/
+
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 # Optional REPL history
 .node_repl_history
 
@@ -67,8 +87,15 @@ web_modules/
 
 # dotenv environment variable files
 .env
+<<<<<<< HEAD
 .env.*
 !.env.example
+=======
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -93,6 +120,7 @@ dist
 
 # vuepress v2.x temp and cache directory
 .temp
+<<<<<<< HEAD
 .cache
 
 # Sveltekit cache directory
@@ -103,6 +131,8 @@ dist
 
 # vitepress cache directory
 **/.vitepress/cache
+=======
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 
 # Docusaurus cache and generated files
 .docusaurus
@@ -116,15 +146,19 @@ dist
 # DynamoDB Local files
 .dynamodb/
 
+<<<<<<< HEAD
 # Firebase cache directory
 .firebase/
 
+=======
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
 # TernJS port file
 .tern-port
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
+<<<<<<< HEAD
 # yarn v3
 .pnp.*
 .yarn/*
@@ -137,3 +171,22 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+=======
+# yarn v2
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+### Node Patch ###
+# Serverless Webpack directories
+.webpack/
+
+# Optional stylelint cache
+
+# SvelteKit build / generate output
+.svelte-kit
+
+# End of https://www.toptal.com/developers/gitignore/api/node
+>>>>>>> b0cc15f (Initial commit – full website setup with event listings and features)
