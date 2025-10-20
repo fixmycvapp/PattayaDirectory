@@ -1,1 +1,54 @@
-"use strict";\n\n// Express server entrypoint for Pattaya Directory\n// - Serves static frontend from /public\n// - Exposes /api/events for filtering/sorting/pagination\n// - Enables CORS and basic logging\n\nconst path = require("path");\nconst express = require("express");\nconst cors = require("cors");\nconst morgan = require("morgan");\n\nconst eventsRouter = require("./routes/events");\n\nconst app = express();\nconst PORT = process.env.PORT || 3000;\n\n// Middleware\napp.use(cors());\napp.use(morgan("dev"));\napp.use(express.json());\n\n// API routes\napp.use("/api/events", eventsRouter);\n\n// Serve static frontend\napp.use(express.static(path.join(__dirname, "../public")));\n\n// Health check\napp.get("/health", (req, res) => {\n  res.json({ status: "ok", uptime: process.uptime() });\n});\n\n// 404 for unknown API routes\napp.use("/api", (req, res) => {\n  res.status(404).json({ error: "Not found" });\n});\n\n// Generic error handler\n// eslint-disable-next-line no-unused-vars\napp.use((err, req, res, next) => {\n  console.error("Unhandled error:", err);\n  res.status(500).json({ error: "Internal Server Error" });\n});\n\napp.listen(PORT, () => {\n  console.log(`Pattaya Directory server listening on http://localhost:${PORT}`);\n});
+"use strict";
+
+// Core server for Pattaya Directory
+// - Serves static frontend from /public
+// - Exposes REST API under /api
+// - Adds CORS, logging, and robust error handling
+
+const path = require("path");
+const express = require("express");
+const cors = require("cors");
+const morgan = require("morgan");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Middleware: CORS for all routes
+app.use(cors());
+
+// Middleware: JSON parsing (future-proofing for POSTs)
+app.use(express.json());
+
+// Middleware: HTTP request logging
+app.use(morgan("dev"));
+
+// API routes
+const eventsRouter = require("./routes/events");
+app.use("/api/events", eventsRouter); // GET /api/events
+
+// Serve static files for the frontend
+app.use(express.static(path.join(__dirname, "..", "public")));
+
+// Simple health check
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", service: "pattaya-directory" });
+});
+
+// 404 handler for API routes only
+app.use("/api", (req, res, next) => {
+  res.status(404).json({ error: "API route not found" });
+});
+
+// Global error handler
+// NOTE: Make sure to pass errors with next(err) in async routes
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err); // Log for diagnostics
+  const status = err.status || 500;
+  res.status(status).json({
+    error: err.message || "Internal Server Error",
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`Pattaya Directory server running on http://localhost:${PORT}`);
+});

@@ -1,1 +1,194 @@
-/* Frontend logic for Pattaya Directory\n * - Fetch events via /api/events\n * - Render in responsive grid (4 per page by default)\n * - Filters/sorting without full reload\n * - Infinite scroll (older events auto-load)\n * - Auto-refresh every 5 minutes + manual refresh button\n */\n\nconst state = {\n  page: 1,\n  limit: 4, // Show 4 events at a time\n  sortBy: "date",\n  sortOrder: "desc",\n  filters: { date: "", type: "", place: "", minPopularity: "" },\n  isLoading: false,\n  hasNextPage: true,\n};\n\nconst gridEl = document.getElementById("eventsGrid");\nconst sentinelEl = document.getElementById("sentinel");\n\nconst filterDate = document.getElementById("filter-date");\nconst filterType = document.getElementById("filter-type");\nconst filterPlace = document.getElementById("filter-place");\nconst filterMinPop = document.getElementById("filter-minpop");\nconst sortByEl = document.getElementById("sort-by");\nconst sortOrderEl = document.getElementById("sort-order");\nconst refreshBtn = document.getElementById("refresh-btn");\n\nfunction toQS(params) {\n  const q = new URLSearchParams();\n  Object.entries(params).forEach(([k, v]) => {\n    if (v !== undefined && v !== null && String(v).length > 0) q.append(k, v);\n  });\n  return q.toString();\n}\n\nasync function fetchEvents({ append = false } = {}) {\n  if (state.isLoading || (!state.hasNextPage && append)) return;\n  state.isLoading = true;\n\n  const qs = toQS({\n    page: state.page,\n    limit: state.limit,\n    sortBy: state.sortBy,\n    sortOrder: state.sortOrder,\n    date: state.filters.date || undefined,\n    type: state.filters.type || undefined,\n    place: state.filters.place || undefined,\n    minPopularity: state.filters.minPopularity || undefined,\n  });\n\n  try {\n    const res = await fetch(`/api/events?${qs}`);\n    if (!res.ok) throw new Error(`HTTP ${res.status}`);\n    const json = await res.json();\n\n    state.hasNextPage = json.pagination?.hasNextPage ?? false;\n\n    if (!append) gridEl.innerHTML = "";\n    renderEvents(json.data || []);\n  } catch (err) {\n    console.error("Failed to fetch events", err);\n  } finally {\n    state.isLoading = false;\n  }\n}\n\nfunction renderEvents(events) {\n  if (!Array.isArray(events)) return;\n  const frag = document.createDocumentFragment();\n  for (const e of events) {\n    const card = document.createElement("article");\n    card.className = "card";\n\n    const dt = new Date(`${e.date}T${e.time}:00");\n    const dateStr = dt.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });\n\n    card.innerHTML = `\n      <h3>${e.name}</h3>\n      <div class="meta">\n        <div><strong>Date/Time:</strong> ${dateStr}</div>\n        <div><strong>Place:</strong> ${e.place}</div>\n        <div><strong>Type:</strong> ${e.type}</div>\n      </div>\n      <div class="badges">\n        <span class="badge popularity">Popularity: ${e.popularity}</span>\n      </div>\n    `;\n\n    frag.appendChild(card);\n  }\n  gridEl.appendChild(frag);\n}\n\nfunction resetAndReload() {\n  state.page = 1;\n  state.hasNextPage = true;\n  fetchEvents({ append: false });\n}\n\n// Filters & sorting handlers\nfunction onFiltersChanged() {\n  state.filters.date = filterDate.value;\n  state.filters.type = filterType.value.trim();\n  state.filters.place = filterPlace.value.trim();\n  state.filters.minPopularity = filterMinPop.value.trim();\n  resetAndReload();\n}\n\nfunction onSortingChanged() {\n  state.sortBy = sortByEl.value;\n  state.sortOrder = sortOrderEl.value;\n  resetAndReload();\n}\n\nfilterDate.addEventListener("change", onFiltersChanged);\nfilterType.addEventListener("input", debounce(onFiltersChanged, 300));\nfilterPlace.addEventListener("input", debounce(onFiltersChanged, 300));\nfilterMinPop.addEventListener("input", debounce(onFiltersChanged, 300));\n\nsortByEl.addEventListener("change", onSortingChanged);\nsortOrderEl.addEventListener("change", onSortingChanged);\n\nrefreshBtn.addEventListener("click", () => {\n  resetAndReload();\n});\n\n// Infinite scroll: load next page when sentinel is visible\nconst io = new IntersectionObserver((entries) => {\n  for (const entry of entries) {\n    if (entry.isIntersecting && state.hasNextPage && !state.isLoading) {\n      state.page += 1;\n      fetchEvents({ append: true });\n    }\n  }\n}, { rootMargin: "400px 0px" });\n\nio.observe(sentinelEl);\n\n// Auto-refresh every 5 minutes\nsetInterval(() => {\n  resetAndReload();\n}, 5 * 60 * 1000);\n\n// Debounce utility\nfunction debounce(fn, wait = 250) {\n  let t;\n  return (...args) => {\n    clearTimeout(t);\n    t = setTimeout(() => fn(...args), wait);\n  };\n}\n\n// Initial load\nresetAndReload();
+(() => {
+  const API_URL = "/api/events";
+
+  // Application state
+  const state = {
+    page: 1,
+    limit: 12,
+    sortBy: "date",
+    sortOrder: "desc",
+    filters: {},
+    loading: false,
+    hasMore: true,
+    lastQueryKey: "",
+  };
+
+  // DOM elements
+  const grid = document.getElementById("eventsGrid");
+  const sentinel = document.getElementById("sentinel");
+  const loadingEl = document.getElementById("loading");
+  const yearEl = document.getElementById("year");
+  const refreshBtn = document.getElementById("refreshBtn");
+
+  // Controls
+  const q = document.getElementById("q");
+  const type = document.getElementById("type");
+  const place = document.getElementById("place");
+  const dateFrom = document.getElementById("dateFrom");
+  const dateTo = document.getElementById("dateTo");
+  const timeFrom = document.getElementById("timeFrom");
+  const timeTo = document.getElementById("timeTo");
+  const popMin = document.getElementById("popMin");
+  const popMax = document.getElementById("popMax");
+  const sortBy = document.getElementById("sortBy");
+  const sortOrder = document.getElementById("sortOrder");
+  const applyBtn = document.getElementById("applyFilters");
+  const clearBtn = document.getElementById("clearFilters");
+
+  // Helpers
+  const fmtDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString();
+  const fmtTime = (hhmm) => hhmm || "";
+
+  function buildQuery() {
+    const params = new URLSearchParams();
+    params.set("page", state.page);
+    params.set("limit", state.limit);
+    params.set("sortBy", state.sortBy);
+    params.set("sortOrder", state.sortOrder);
+
+    const f = state.filters;
+    if (f.q) params.set("q", f.q);
+    if (f.type) params.set("type", f.type);
+    if (f.place) params.set("place", f.place);
+    if (f.dateFrom) params.set("dateFrom", f.dateFrom);
+    if (f.dateTo) params.set("dateTo", f.dateTo);
+    if (f.timeFrom) params.set("timeFrom", f.timeFrom);
+    if (f.timeTo) params.set("timeTo", f.timeTo);
+    if (f.popularityMin != null && f.popularityMin !== "") params.set("popularityMin", f.popularityMin);
+    if (f.popularityMax != null && f.popularityMax !== "") params.set("popularityMax", f.popularityMax);
+
+    return params.toString();
+  }
+
+  function makeQueryKey() {
+    // Unique key for current filter/sort ignoring page
+    const clone = { ...state, page: 0 };
+    return JSON.stringify(clone);
+  }
+
+  function setLoading(on) {
+    state.loading = on;
+    loadingEl.classList.toggle("hidden", !on);
+  }
+
+  function renderEvents(items) {
+    const frag = document.createDocumentFragment();
+    items.forEach((e) => {
+      const card = document.createElement("article");
+      card.className = "card";
+      card.innerHTML = `
+        <h3>${escapeHtml(e.title)}</h3>
+        <div class="row muted">
+          <span>${fmtDate(e.date)} ${fmtTime(e.time)}</span>
+          <span class="badge">${escapeHtml(e.type)}</span>
+          <span>at ${escapeHtml(e.place)}</span>
+          <span class="pop">★ ${Number(e.popularity || 0)}</span>
+        </div>
+        <p class="muted">${escapeHtml(e.description)}</p>
+      `;
+      frag.appendChild(card);
+    });
+    grid.appendChild(frag);
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  async function fetchEvents() {
+    if (state.loading || !state.hasMore) return;
+
+    const queryKey = makeQueryKey();
+    const isNewQuery = queryKey !== state.lastQueryKey;
+
+    setLoading(true);
+
+    try {
+      const url = `${API_URL}?${buildQuery()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Failed to fetch: ${res.status}`);
+      const json = await res.json();
+
+      // If filters changed while request was in-flight, discard data
+      if (queryKey !== makeQueryKey()) return;
+
+      renderEvents(json.data || []);
+      state.hasMore = state.page < json.totalPages;
+      state.lastQueryKey = queryKey;
+    } catch (err) {
+      console.error(err);
+      alert("Error loading events. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function resetAndLoad() {
+    // Reset grid and paging for a fresh query
+    grid.innerHTML = "";
+    state.page = 1;
+    state.hasMore = true;
+    state.lastQueryKey = "";
+    fetchEvents();
+  }
+
+  function applyFiltersFromUI() {
+    state.sortBy = sortBy.value || "date";
+    state.sortOrder = sortOrder.value || "desc";
+    state.filters = {
+      q: q.value.trim() || undefined,
+      type: type.value || undefined,
+      place: place.value || undefined,
+      dateFrom: dateFrom.value || undefined,
+      dateTo: dateTo.value || undefined,
+      timeFrom: timeFrom.value || undefined,
+      timeTo: timeTo.value || undefined,
+      popularityMin: popMin.value || undefined,
+      popularityMax: popMax.value || undefined,
+    };
+  }
+
+  // Infinite scroll using IntersectionObserver
+  const io = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting && state.hasMore && !state.loading) {
+        state.page += 1; // next page
+        fetchEvents();
+      }
+    }
+  }, { rootMargin: "400px" });
+  io.observe(sentinel);
+
+  // Auto refresh every 5 minutes
+  setInterval(() => {
+    applyFiltersFromUI();
+    resetAndLoad();
+  }, 5 * 60 * 1000);
+
+  // UI wiring
+  applyBtn.addEventListener("click", () => {
+    applyFiltersFromUI();
+    resetAndLoad();
+  });
+  clearBtn.addEventListener("click", () => {
+    [q, type, place, dateFrom, dateTo, timeFrom, timeTo, popMin, popMax].forEach((el) => (el.value = ""));
+    sortBy.value = "date";
+    sortOrder.value = "desc";
+    applyFiltersFromUI();
+    resetAndLoad();
+  });
+  refreshBtn.addEventListener("click", () => {
+    applyFiltersFromUI();
+    resetAndLoad();
+  });
+
+  // Initial load
+  applyFiltersFromUI();
+  yearEl.textContent = new Date().getFullYear();
+  resetAndLoad();
+})();

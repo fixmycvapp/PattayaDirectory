@@ -1,1 +1,208 @@
-"use strict";\n\n// Events API router\n// GET /api/events supports filtering, sorting, and pagination\n// Query params:\n// - page (number, default 1)\n// - limit (number, default 4)\n// - sortBy ("date" | "time" | "popularity", default "date")\n// - sortOrder ("asc" | "desc", default "desc" for newest first)\n// - date (YYYY-MM-DD exact match)\n// - dateFrom/dateTo (YYYY-MM-DD range)\n// - time (HH:mm exact match)\n// - timeFrom/timeTo (HH:mm range)\n// - type (string contains, case-insensitive)\n// - place (string contains, case-insensitive)\n// - minPopularity/maxPopularity (number range)\n\nconst path = require("path");\nconst fs = require("fs");\nconst express = require("express");\n\nconst router = express.Router();\n\nconst DATA_PATH = path.join(__dirname, "../data/events.json");\n\nfunction loadEvents() {\n  // Read fresh data every request to simplify sample project\n  const raw = fs.readFileSync(DATA_PATH, "utf8");\n  return JSON.parse(raw);\n}\n\nfunction toTimestamp(event) {\n  // Combine date+time into a timestamp for consistent sorting\n  const iso = `${event.date}T${event.time}:00`;\n  return new Date(iso).getTime();\n}\n\nfunction parseNumber(v, def) {\n  const n = Number(v);\n  return Number.isFinite(n) ? n : def;\n}\n\nrouter.get("/", (req, res) => {\n  try {\n    const {\n      page = "1",\n      limit = "4",\n      sortBy = "date",\n      sortOrder = "desc",\n      date,\n      dateFrom,\n      dateTo,\n      time,\n      timeFrom,\n      timeTo,\n      type,\n      place,\n      minPopularity,\n      maxPopularity,\n    } = req.query;\n\n    let events = loadEvents();\n\n    // Filtering\n    events = events.filter((e) => {\n      // date exact\n      if (date && e.date !== String(date)) return false;\n\n      // date range\n      if (dateFrom && e.date < String(dateFrom)) return false;\n      if (dateTo && e.date > String(dateTo)) return false;\n\n      // time exact\n      if (time && e.time !== String(time)) return false;\n\n      // time range\n      if (timeFrom && e.time < String(timeFrom)) return false;\n      if (timeTo && e.time > String(timeTo)) return false;\n\n      // type contains (case-insensitive)\n      if (type && !e.type.toLowerCase().includes(String(type).toLowerCase())) return false;\n\n      // place contains (case-insensitive)\n      if (place && !e.place.toLowerCase().includes(String(place).toLowerCase())) return false;\n\n      const minPop = parseNumber(minPopularity, -Infinity);\n      const maxPop = parseNumber(maxPopularity, Infinity);\n      if (e.popularity < minPop) return false;\n      if (e.popularity > maxPop) return false;\n\n      return true;\n    });\n\n    // Sorting\n    const order = String(sortOrder).toLowerCase() === "asc" ? 1 : -1;\n    events.sort((a, b) => {\n      if (sortBy === "popularity") {\n        return (a.popularity - b.popularity) * order;\n      }\n      if (sortBy === "time") {\n        return (a.time.localeCompare(b.time)) * order;\n      }\n      // default: date (uses date + time timestamp)\n      const at = toTimestamp(a);\n      const bt = toTimestamp(b);\n      return (at - bt) * order;\n    });\n\n    // Pagination\n    const pageNum = Math.max(1, parseInt(page, 10) || 1);\n    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 4));\n    const total = events.length;\n    const totalPages = Math.max(1, Math.ceil(total / limitNum));\n    const start = (pageNum - 1) * limitNum;\n    const end = start + limitNum;\n    const pageItems = events.slice(start, end);\n\n    res.json({\n      data: pageItems,\n      pagination: {\n        page: pageNum,\n        limit: limitNum,\n        total,\n        totalPages,\n        hasNextPage: end < total,\n      },\n      sort: { sortBy, sortOrder },\n      filters: { date, dateFrom, dateTo, time, timeFrom, timeTo, type, place, minPopularity, maxPopularity },\n    });\n  } catch (err) {\n    console.error("/api/events error:", err);\n    res.status(500).json({ error: "Failed to load events" });\n  }\n});\n\nmodule.exports = router;
+"use strict";
+
+// Events API router
+// GET /api/events
+// - Filters: q (search), type, place, dateFrom, dateTo, timeFrom, timeTo, popularityMin, popularityMax
+// - Sorting: sortBy (date|time|type|place|popularity|title), sortOrder (asc|desc)
+// - Pagination: page (1-based), limit
+// Returns: { page, limit, total, totalPages, sortBy, sortOrder, filtersUsed, data: [...] }
+
+const fs = require("fs/promises");
+const path = require("path");
+const express = require("express");
+
+const router = express.Router();
+const DATA_FILE = path.join(__dirname, "..", "data", "events.json");
+
+// Utility: parse HH:mm into minutes from midnight
+function parseTimeToMinutes(str) {
+  if (!str) return null;
+  const [hh, mm] = str.split(":").map((n) => parseInt(n, 10));
+  if (Number.isNaN(hh) || Number.isNaN(mm)) return null;
+  return hh * 60 + mm;
+}
+
+// Utility: safe string compare (case-insensitive)
+function normalize(str) {
+  return String(str || "").trim().toLowerCase();
+}
+
+// Utility: unified date-time sort key (Date object)
+function toDateTime(event) {
+  // Expecting date as YYYY-MM-DD and time as HH:mm
+  const dateStr = event.date || "1970-01-01";
+  const timeStr = event.time || "00:00";
+  const iso = `${dateStr}T${timeStr}:00`;
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? new Date("1970-01-01T00:00:00") : d;
+}
+
+// Main GET handler
+router.get("/", async (req, res, next) => {
+  try {
+    const {
+      q,
+      type,
+      place,
+      dateFrom,
+      dateTo,
+      timeFrom,
+      timeTo,
+      popularityMin,
+      popularityMax,
+      sortBy = "date",
+      sortOrder = "desc",
+      page = "1",
+      limit = "12",
+    } = req.query;
+
+    // Load events data from JSON file
+    const raw = await fs.readFile(DATA_FILE, "utf8");
+    let events = JSON.parse(raw);
+
+    // Filtering
+    const filtersUsed = {};
+
+    if (q && String(q).trim()) {
+      const qn = normalize(q);
+      events = events.filter((e) => {
+        return (
+          normalize(e.title).includes(qn) ||
+          normalize(e.description).includes(qn) ||
+          normalize(e.place).includes(qn)
+        );
+      });
+      filtersUsed.q = q;
+    }
+
+    if (type) {
+      const types = String(type)
+        .split(",")
+        .map((t) => normalize(t))
+        .filter(Boolean);
+      if (types.length) {
+        events = events.filter((e) => types.includes(normalize(e.type)));
+        filtersUsed.type = types;
+      }
+    }
+
+    if (place) {
+      const places = String(place)
+        .split(",")
+        .map((p) => normalize(p))
+        .filter(Boolean);
+      if (places.length) {
+        events = events.filter((e) => places.includes(normalize(e.place)));
+        filtersUsed.place = places;
+      }
+    }
+
+    if (dateFrom) {
+      const df = new Date(`${dateFrom}T00:00:00`);
+      if (!isNaN(df)) {
+        events = events.filter((e) => new Date(`${e.date}T00:00:00`) >= df);
+        filtersUsed.dateFrom = dateFrom;
+      }
+    }
+
+    if (dateTo) {
+      const dt = new Date(`${dateTo}T23:59:59`);
+      if (!isNaN(dt)) {
+        events = events.filter((e) => new Date(`${e.date}T23:59:59`) <= dt);
+        filtersUsed.dateTo = dateTo;
+      }
+    }
+
+    const tf = parseTimeToMinutes(timeFrom);
+    const tt = parseTimeToMinutes(timeTo);
+    if (tf !== null) {
+      events = events.filter((e) => {
+        const em = parseTimeToMinutes(e.time);
+        return em !== null ? em >= tf : true;
+      });
+      filtersUsed.timeFrom = timeFrom;
+    }
+    if (tt !== null) {
+      events = events.filter((e) => {
+        const em = parseTimeToMinutes(e.time);
+        return em !== null ? em <= tt : true;
+      });
+      filtersUsed.timeTo = timeTo;
+    }
+
+    const pmin = popularityMin != null ? Number(popularityMin) : null;
+    const pmax = popularityMax != null ? Number(popularityMax) : null;
+    if (pmin !== null && !Number.isNaN(pmin)) {
+      events = events.filter((e) => Number(e.popularity || 0) >= pmin);
+      filtersUsed.popularityMin = pmin;
+    }
+    if (pmax !== null && !Number.isNaN(pmax)) {
+      events = events.filter((e) => Number(e.popularity || 0) <= pmax);
+      filtersUsed.popularityMax = pmax;
+    }
+
+    // Sorting
+    const order = normalize(sortOrder) === "asc" ? 1 : -1;
+    const sb = normalize(sortBy);
+
+    events.sort((a, b) => {
+      let cmp = 0;
+      switch (sb) {
+        case "date": {
+          const ad = toDateTime(a).getTime();
+          const bd = toDateTime(b).getTime();
+          cmp = ad - bd; // asc by default
+          break;
+        }
+        case "time": {
+          const at = parseTimeToMinutes(a.time) ?? -1;
+          const bt = parseTimeToMinutes(b.time) ?? -1;
+          cmp = at - bt;
+          break;
+        }
+        case "type":
+        case "place":
+        case "title": {
+          cmp = normalize(a[sb]).localeCompare(normalize(b[sb]));
+          break;
+        }
+        case "popularity": {
+          cmp = Number(a.popularity || 0) - Number(b.popularity || 0);
+          break;
+        }
+        default: {
+          // Fallback to date
+          const ad = toDateTime(a).getTime();
+          const bd = toDateTime(b).getTime();
+          cmp = ad - bd;
+        }
+      }
+      return order * cmp;
+    });
+
+    // Pagination
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 12));
+    const total = events.length;
+    const totalPages = Math.max(1, Math.ceil(total / limitNum));
+    const start = (pageNum - 1) * limitNum;
+    const end = start + limitNum;
+    const data = events.slice(start, end);
+
+    res.json({
+      page: pageNum,
+      limit: limitNum,
+      total,
+      totalPages,
+      sortBy: sb || "date",
+      sortOrder: order === 1 ? "asc" : "desc",
+      filtersUsed,
+      data,
+    });
+  } catch (err) {
+    // Let the global error handler process this
+    next(err);
+  }
+});
+
+module.exports = router;

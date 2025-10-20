@@ -1,1 +1,112 @@
-<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>Pattaya Directory – Events</title>\n    <link rel="stylesheet" href="/css/style.css" />\n  </head>\n  <body>\n    <header class="app-header">\n      <h1>Pattaya Directory</h1>\n      <p class="subtitle">Your complete guide to events happening in Pattaya</p>\n    </header>\n\n    <section class="controls">\n      <div class="filters">\n        <label>\n          Date\n          <input type="date" id="filter-date" />\n        </label>\n        <label>\n          Type\n          <input type="text" id="filter-type" placeholder="e.g., Music, Sports" />\n        </label>\n        <label>\n          Place\n          <input type="text" id="filter-place" placeholder="e.g., Pattaya Beach" />\n        </label>\n        <label>\n          Popularity ≥\n          <input type="number" id="filter-minpop" min="0" max="100" step="1" placeholder="0" />\n        </label>\n      </div>\n      <div class="sorting">\n        <label>\n          Sort by\n          <select id="sort-by">\n            <option value="date" selected>Date (newest)</option>\n            <option value="time">Time</option>\n            <option value="popularity">Popularity</option>\n          </select>\n        </label>\n        <label>\n          Order\n          <select id="sort-order">\n            <option value="desc" selected>Desc</option>\n            <option value="asc">Asc</option>\n          </select>\n        </label>\n        <button id="refresh-btn" class="btn">Refresh</button>\n      </div>\n    </section>\n\n    <main>\n      <div id="eventsGrid" class="grid"></div>\n      <div id="sentinel" class="sentinel" aria-hidden="true"></div>\n    </main>\n\n    <footer class="app-footer">\n      <p>Auto-refresh every 5 minutes. Built with Node.js & Express.</p>\n    </footer>\n\n    <script src="/js/app.js" defer></script>\n  </body>\n</html>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pattaya Directory</title>
+    <link rel="stylesheet" href="/css/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="container">
+        <h1>Pattaya Directory</h1>
+        <div class="actions">
+          <button id="refreshBtn" title="Refresh events">Refresh</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="controls container">
+      <!-- Filters and sorting -->
+      <div class="control-row">
+        <input id="q" type="search" placeholder="Search events (title, place, description)" />
+
+        <select id="type">
+          <option value="">All types</option>
+          <option>music</option>
+          <option>food</option>
+          <option>wellness</option>
+          <option>dance</option>
+          <option>art</option>
+          <option>comedy</option>
+          <option>outdoors</option>
+          <option>sport</option>
+          <option>education</option>
+          <option>community</option>
+        </select>
+
+        <select id="place">
+          <option value="">All places</option>
+          <option>Jomtien Beach Club</option>
+          <option>Walking Street</option>
+          <option>Pattaya Viewpoint</option>
+          <option>Thepprasit Night Market</option>
+          <option>Nong Nooch Garden</option>
+          <option>Soi Buakhao</option>
+          <option>Pattaya Beach</option>
+          <option>Central Pattaya Mall</option>
+          <option>Bali Hai Pier</option>
+          <option>Soi LK Metro</option>
+          <option>Beach Road</option>
+          <option>Koh Larn</option>
+          <option>Indoor Stadium</option>
+          <option>Jomtien Beach</option>
+          <option>Dongtan Beach</option>
+          <option>Pattaya City Hall</option>
+          <option>Hard Rock Cafe</option>
+          <option>The Sanctuary Kitchen</option>
+          <option>The Geek Den</option>
+          <option>Co-Work Hub</option>
+          <option>Art House</option>
+          <option>Cultural Center</option>
+          <option>City Library</option>
+          <option>Pattaya Park</option>
+          <option>Beachside Cafe</option>
+          <option>Roasters Corner</option>
+        </select>
+
+        <label>From <input id="dateFrom" type="date" /></label>
+        <label>To <input id="dateTo" type="date" /></label>
+      </div>
+
+      <div class="control-row">
+        <label>Time from <input id="timeFrom" type="time" /></label>
+        <label>Time to <input id="timeTo" type="time" /></label>
+
+        <label>Popularity min <input id="popMin" type="number" min="0" max="100" step="1" placeholder="0" /></label>
+        <label>Popularity max <input id="popMax" type="number" min="0" max="100" step="1" placeholder="100" /></label>
+
+        <select id="sortBy">
+          <option value="date" selected>Sort by date</option>
+          <option value="time">Sort by time</option>
+          <option value="type">Sort by type</option>
+          <option value="place">Sort by place</option>
+          <option value="popularity">Sort by popularity</option>
+          <option value="title">Sort by title</option>
+        </select>
+
+        <select id="sortOrder">
+          <option value="desc" selected>Desc</option>
+          <option value="asc">Asc</option>
+        </select>
+
+        <button id="applyFilters">Apply</button>
+        <button id="clearFilters" class="secondary">Clear</button>
+      </div>
+    </section>
+
+    <main class="container">
+      <div id="eventsGrid" class="grid"></div>
+      <div id="loading" class="loading hidden">Loading…</div>
+      <div id="sentinel"></div>
+    </main>
+
+    <footer class="footer">
+      <div class="container">
+        <small>&copy; <span id="year"></span> Pattaya Directory</small>
+      </div>
+    </footer>
+
+    <script src="/js/app.js" defer></script>
+  </body>
+</html>
